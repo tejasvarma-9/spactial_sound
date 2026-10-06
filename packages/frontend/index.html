@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spatial Soundscape ⟁ AI Audio Engine</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌀</text></svg>" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <header class="hud hud-top">
+    <div class="brand">
+      <span class="brand-glyph">⟁</span>
+      <span class="brand-text">SPATIAL SOUNDSCAPE</span>
+    </div>
+    <div class="room-info">
+      ROOM <button id="room-switch" class="room-btn" title="click to switch room"><span id="room-name">lobby</span></button>
+      <span class="dot" id="conn-dot"></span>
+      <span id="conn-status">connecting…</span>
+    </div>
+    <div class="peer-count">
+      <span id="peer-count">1</span> wanderer<span id="peer-plural">s</span>
+    </div>
+    <div class="hud-rec" id="hud-rec">
+      <button id="btn-master-rec" class="master-rec-btn" title="Record master mix">⏺ REC</button>
+      <span class="rec-elapsed" id="rec-elapsed" hidden>00:00</span>
+      <span class="rec-size" id="rec-size" hidden></span>
+    </div>
+  </header>
+
+  <aside class="hud hud-side">
+    <div class="sidebar-topbar">
+      <h3 style="margin:0">DROP NODE</h3>
+      <button id="sidebar-wide-btn" class="sidebar-width-btn" title="Toggle panel width">⟺</button>
+    </div>
+    <div class="palette">
+      <button class="node-btn" data-type="ambient">◉ AMBIENT</button>
+      <button class="node-btn" data-type="bass">▼ BASS</button>
+      <button class="node-btn" data-type="percussion">▦ PERC</button>
+      <button class="node-btn" data-type="generative">✺ GEN AI</button>
+      <button class="node-btn" data-type="bells">✦ BELLS</button>
+      <button class="node-btn" data-type="strings">≋ STRINGS</button>
+      <button class="node-btn" data-type="pad">⬡ PAD</button>
+      <button class="node-btn" data-type="pluck">⌇ PLUCK</button>
+      <button class="node-btn melody-btn" data-type="melody" title="Open the melody composer: draw your own tune on a piano-roll grid, preview it, then drop it as a canvas node">♫ MELODY</button>
+      <button class="node-btn voice-btn" data-type="voice" title="Uses your microphone — browser will ask permission">◎ VOICE</button>
+    </div>
+    <p class="hint">click canvas to drop · WASD/arrows move</p>
+
+    <h3>MOOD ENGINE</h3>
+    <div class="mood-row">
+      <input id="mood-input" type="text" placeholder="say something..." />
+      <button id="mood-btn" title="Analyse mood">⚡</button>
+    </div>
+    <div id="mood-output" class="mood-output"></div>
+
+    <h3>CREATIVE</h3>
+    <span class="tool-group-label">CANVAS</span>
+    <button id="btn-fit" title="Frame every node + peer on screen">⊡ FIT ALL</button>
+    <button id="btn-constellation">✦ CONSTELLATION</button>
+    <span class="tool-group-label">PERFORM</span>
+    <div class="piano-row">
+      <button id="btn-piano">♪ KEYBOARD PIANO</button>
+      <button id="btn-piano-vol" title="Piano volume" class="piano-vol-btn">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.5 4.5H4L7 2v9L4 8.5H1.5v-4z" fill="currentColor"/>
+          <path d="M8.5 4.2c.9.7 1.4 1.5 1.4 2.3s-.5 1.6-1.4 2.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+          <path d="M10.2 2.8c1.5 1.1 2.3 2.2 2.3 3.7s-.8 2.6-2.3 3.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        </svg>
+      </button>
+    </div>
+    <button id="btn-loop">↺ LOOP REC</button>
+    <span class="tool-group-label">SCENE</span>
+    <div class="two-col">
+      <button id="btn-link" title="Link two nodes harmonically">⤢ LINK</button>
+      <button id="btn-gravity" title="Nodes drift toward you">⊕ GRAVITY</button>
+    </div>
+    <button id="btn-snapshot" title="Save / restore scene presets">◈ SNAPSHOT</button>
+
+    <button id="btn-realm" title="Create a musical zone. Nodes dropped inside inherit its key + BPM. Click a realm's label (the text at the top) to edit or resize it.">◯ NEW REALM</button>
+    <button id="btn-portal" title="Create a portal. Local pairs teleport you between two spots on this canvas. Room portals switch you to another room. Right-click a portal to delete.">◈ NEW PORTAL</button>
+
+    <span class="tool-group-label">ENVIRONMENT</span>
+    <div class="env-strip" title="Global acoustic space — applied to the whole scene">
+      <button class="env-btn active" data-env="none"      title="No colouring — clean space">◌</button>
+      <button class="env-btn"        data-env="cave"      title="Cave · dark, narrow, long tail">⏜</button>
+      <button class="env-btn"        data-env="forest"    title="Forest · pre-delay, HF damping">✽</button>
+      <button class="env-btn"        data-env="cathedral" title="Cathedral · huge wide 4s tail">✚</button>
+      <button class="env-btn"        data-env="tunnel"    title="Tunnel · comb resonance, narrow">⇌</button>
+    </div>
+
+    <button id="btn-ghosts" title="Toggle echo ghosts: your last 30s of movement replays as a fading trail with delayed audio">◈ ECHO GHOSTS</button>
+    <div class="bpm-row" title="Global tempo — syncs PERC, PLUCK, GEN AI">
+      <span class="bpm-label">BPM</span>
+      <input id="bpm-slider" type="range" min="60" max="200" value="120" step="1" />
+      <span id="bpm-val">120</span>
+    </div>
+    <button id="btn-clear" class="btn-danger">⌫ CLEAR ALL</button>
+
+    <h3>MIX</h3>
+    <label title="Overall output volume of every node in the scene">
+      MASTER <span class="mix-hint">global gain</span>
+      <input id="vol-master" type="range" min="0" max="100" value="80" />
+    </label>
+    <label title="Wet/dry mix of the convolver reverb — higher = more cavernous, more space, longer tail">
+      REVERB <span class="mix-hint">room size</span>
+      <input id="vol-reverb" type="range" min="0" max="100" value="25" />
+    </label>
+    <label title="Scale the intensity of all visual effects — ribbons, shockwaves, bloom, particles">
+      VISUALS <span class="mix-hint">intensity</span>
+      <input id="vol-visuals" type="range" min="0" max="100" value="100" />
+    </label>
+  </aside>
+
+  <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">›</button>
+
+  <div class="hud hud-bottom">
+    <span class="legend" id="legend">▷ click ENTER to start audio</span>
+    <span class="mic-status" id="mic-status" hidden>🎙 <span id="mic-status-label">—</span></span>
+    <span class="fps" id="fps">— fps</span>
+    <span class="zoom-indicator" id="zoom-indicator">1.0×</span>
+  </div>
+
+  <div class="node-popup" id="piano-vol-popup">
+    <div class="np-label">PIANO VOLUME</div>
+    <div class="np-row">
+      <span class="np-icon" id="pvp-icon">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M1.5 4.5H4L7 2v9L4 8.5H1.5v-4z" fill="currentColor"/>
+          <path d="M8.5 4.2c.9.7 1.4 1.5 1.4 2.3s-.5 1.6-1.4 2.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+          <path d="M10.2 2.8c1.5 1.1 2.3 2.2 2.3 3.7s-.8 2.6-2.3 3.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+        </svg>
+      </span>
+      <input type="range" id="pvp-vol" min="0" max="100" step="1" value="100" />
+      <span class="np-val" id="pvp-val">100%</span>
+    </div>
+  </div>
+
+  <div class="node-popup" id="node-popup">
+    <div class="np-label" id="np-label"></div>
+    <div class="np-row">
+      <span class="np-icon">🔈</span>
+      <input type="range" id="np-vol" min="0" max="100" step="1" />
+      <span class="np-val" id="np-val">—</span>
+    </div>
+    <div class="np-design" id="np-design">
+      <div class="np-design-title">SOUND DESIGN</div>
+
+      <!-- AMBIENT -->
+      <div class="np-section" id="npd-ambient" hidden>
+        <div class="np-param"><span class="np-plabel">CUTOFF</span><input type="range" id="npa-cutoff" min="200" max="8000" step="10"/><span class="np-pval" id="npa-cutoff-v">800</span><span class="np-punit">Hz</span></div>
+        <div class="np-param"><span class="np-plabel">LFO</span><input type="range" id="npa-lfo" min="0.1" max="4" step="0.1"/><span class="np-pval" id="npa-lfo-v">0.15</span><span class="np-punit">Hz</span></div>
+        <div class="np-param"><span class="np-plabel">SPREAD</span><input type="range" id="npa-spread" min="0" max="50" step="1"/><span class="np-pval" id="npa-spread-v">8</span><span class="np-punit">¢</span></div>
+      </div>
+
+      <!-- BASS -->
+      <div class="np-section" id="npd-bass" hidden>
+        <div class="np-param"><span class="np-plabel">CUTOFF</span><input type="range" id="npb-cutoff" min="50" max="500" step="5"/><span class="np-pval" id="npb-cutoff-v">300</span><span class="np-punit">Hz</span></div>
+        <div class="np-param"><span class="np-plabel">DRIVE</span><input type="range" id="npb-drive" min="0" max="100" step="1"/><span class="np-pval" id="npb-drive-v">50</span><span class="np-punit">%</span></div>
+        <div class="np-param"><span class="np-plabel">SUB</span><input type="range" id="npb-sub" min="0" max="100" step="1"/><span class="np-pval" id="npb-sub-v">0</span><span class="np-punit">%</span></div>
+      </div>
+
+      <!-- PERC -->
+      <div class="np-section" id="npd-perc" hidden>
+        <div class="np-param"><span class="np-plabel">FREQ</span><input type="range" id="npp-freq" min="100" max="8000" step="10"/><span class="np-pval" id="npp-freq-v">1000</span><span class="np-punit">Hz</span></div>
+        <div class="np-param"><span class="np-plabel">DECAY</span><input type="range" id="npp-decay" min="0.05" max="0.5" step="0.01"/><span class="np-pval" id="npp-decay-v">0.20</span><span class="np-punit">s</span></div>
+        <div class="np-param"><span class="np-plabel">NOISE</span><input type="range" id="npp-noise" min="0" max="100" step="1"/><span class="np-pval" id="npp-noise-v">100</span><span class="np-punit">%</span></div>
+      </div>
+
+      <!-- GEN AI -->
+      <div class="np-section" id="npd-generative" hidden>
+        <div class="np-param"><span class="np-plabel">SPEED</span><input type="range" id="npg-speed" min="0.5" max="4" step="0.1"/><span class="np-pval" id="npg-speed-v">1.0</span><span class="np-punit">×</span></div>
+        <div class="np-param np-param-select">
+          <span class="np-plabel">PATTERN</span>
+          <select id="npg-pattern" class="np-select">
+            <option value="pentatonic">PENTATONIC</option>
+            <option value="major">MAJOR</option>
+            <option value="minor">MINOR</option>
+            <option value="chromatic">CHROMATIC</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- BELLS -->
+      <div class="np-section" id="npd-bells" hidden>
+        <div class="np-param"><span class="np-plabel">FM RATIO</span><input type="range" id="npk-ratio" min="1" max="8" step="0.1"/><span class="np-pval" id="npk-ratio-v">3.5</span><span class="np-punit">×</span></div>
+        <div class="np-param"><span class="np-plabel">FM DEPTH</span><input type="range" id="npk-depth" min="0" max="500" step="5"/><span class="np-pval" id="npk-depth-v">—</span><span class="np-punit"></span></div>
+        <div class="np-param"><span class="np-plabel">DECAY</span><input type="range" id="npk-decay" min="0.5" max="5" step="0.1"/><span class="np-pval" id="npk-decay-v">3.5</span><span class="np-punit">s</span></div>
+      </div>
+
+      <!-- STRINGS -->
+      <div class="np-section" id="npd-strings" hidden>
+        <div class="np-param"><span class="np-plabel">SPREAD</span><input type="range" id="nps-spread" min="0" max="100" step="1"/><span class="np-pval" id="nps-spread-v">14</span><span class="np-punit">¢</span></div>
+        <div class="np-param"><span class="np-plabel">ATTACK</span><input type="range" id="nps-attack" min="0.1" max="2" step="0.05"/><span class="np-pval" id="nps-attack-v">1.20</span><span class="np-punit">s</span></div>
+        <div class="np-param"><span class="np-plabel">CUTOFF</span><input type="range" id="nps-cutoff" min="200" max="8000" step="10"/><span class="np-pval" id="nps-cutoff-v">1800</span><span class="np-punit">Hz</span></div>
+      </div>
+
+      <!-- PAD -->
+      <div class="np-section" id="npd-pad" hidden>
+        <div class="np-param"><span class="np-plabel">CUTOFF</span><input type="range" id="npd-cutoff" min="200" max="6000" step="10"/><span class="np-pval" id="npd-cutoff-v">700</span><span class="np-punit">Hz</span></div>
+        <div class="np-param"><span class="np-plabel">SWEEP</span><input type="range" id="npd-sweep" min="0.05" max="0.5" step="0.01"/><span class="np-pval" id="npd-sweep-v">0.07</span><span class="np-punit">Hz</span></div>
+        <div class="np-param np-param-select">
+          <span class="np-plabel">CHORD</span>
+          <select id="npd-chord" class="np-select">
+            <option value="maj">MAJ</option>
+            <option value="min">MIN</option>
+            <option value="sus4">SUS4</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- PLUCK -->
+      <div class="np-section" id="npd-pluck" hidden>
+        <div class="np-param"><span class="np-plabel">DECAY</span><input type="range" id="nppl-decay" min="0.1" max="2" step="0.05"/><span class="np-pval" id="nppl-decay-v">0.45</span><span class="np-punit">s</span></div>
+        <div class="np-param"><span class="np-plabel">HARMONIC</span><input type="range" id="nppl-harm" min="0" max="100" step="1"/><span class="np-pval" id="nppl-harm-v">30</span><span class="np-punit">%</span></div>
+        <div class="np-param"><span class="np-plabel">CUTOFF</span><input type="range" id="nppl-cutoff" min="500" max="8000" step="10"/><span class="np-pval" id="nppl-cutoff-v">—</span><span class="np-punit">Hz</span></div>
+      </div>
+
+      <!-- VOICE -->
+      <div class="np-section" id="npd-voice" hidden>
+        <div class="np-param"><span class="np-plabel">GATE</span><input type="range" id="npv-gate" min="-60" max="-20" step="1"/><span class="np-pval" id="npv-gate-v">-40</span><span class="np-punit">dB</span></div>
+      </div>
+      <button id="np-set-default" class="np-set-default" title="Save current sound design as default for this node type">SET AS DEFAULT</button>
+    </div>
+  </div>
+
+  <button id="theme-btn" class="theme-fab" title="change theme">☾</button>
+  <div class="theme-dropdown" id="theme-dropdown">
+    <button class="theme-opt active" data-theme="dark">☾ NEON<span class="theme-sub">cyberpunk dark</span></button>
+    <button class="theme-opt" data-theme="dark-mellow">◑ TOKYO NIGHT<span class="theme-sub">soft dark</span></button>
+    <button class="theme-opt" data-theme="light">♡ ROSÉ DAWN<span class="theme-sub">warm peach pastel</span></button>
+    <button class="theme-opt" data-theme="tint">◌ PASTEL TINT<span class="theme-sub">pick your hue</span></button>
+    <div class="tint-hue-row" id="tint-hue-row">
+      <div class="tint-hue-inner">
+        <span id="tint-preview" class="tint-preview"></span>
+        <input type="range" id="tint-hue-slider" min="0" max="359" value="340" step="1" class="tint-hue-slider" />
+      </div>
+    </div>
+  </div>
+  <button id="help-btn" class="help-fab" title="show keyboard shortcuts (?)">?</button>
+
+  <div class="modal-backdrop" id="help-modal" hidden>
+    <div class="modal modal-wide help-modal-body">
+      <h2>CONTROLS</h2>
+
+      <div class="help-tabs" role="tablist">
+        <button class="help-tab active" data-help-tab="canvas">CANVAS</button>
+        <button class="help-tab" data-help-tab="nodes">NODES</button>
+        <button class="help-tab" data-help-tab="realms">REALMS</button>
+        <button class="help-tab" data-help-tab="portals">PORTALS</button>
+        <button class="help-tab" data-help-tab="acoustics">ACOUSTICS</button>
+        <button class="help-tab" data-help-tab="creative">CREATIVE</button>
+        <button class="help-tab" data-help-tab="rooms">ROOMS &amp; THEMES</button>
+      </div>
+
+      <div class="help-scroll">
+        <!-- ────────── CANVAS ────────── -->
+        <div class="help-page active" data-help-page="canvas">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>MOVE</h4>
+              <div class="kbd-row"><span class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span class="desc">walk through</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>SPACE</kbd><span class="plus">+drag</span></span><span class="desc">pan camera</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>HOME</kbd></span><span class="desc">reset to origin</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>F</kbd></span><span class="desc">fullscreen</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>ZOOM</h4>
+              <div class="kbd-row"><span class="keys"><kbd>wheel</kbd><span class="sep">·</span><kbd>pinch</kbd></span><span class="desc">zoom at cursor</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>+</kbd><kbd>−</kbd></span><span class="desc">zoom in / out</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>0</kbd></span><span class="desc">reset zoom</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⊡ FIT ALL</kbd></span><span class="desc">frame everything</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ────────── NODES ────────── -->
+        <div class="help-page" data-help-page="nodes">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>INTERACTIONS</h4>
+              <div class="kbd-row"><span class="keys"><kbd>click</kbd></span><span class="desc">drop a new node</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>drag</kbd></span><span class="desc">move a node</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>ALT</kbd><span class="plus">+drag</span></span><span class="desc">duplicate</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>SHIFT</kbd><span class="plus">+drag</span></span><span class="desc">snap to grid</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>right-click</kbd></span><span class="desc">delete</span></div>
+              <div class="kbd-row"><span class="keys">hover <kbd>M</kbd></span><span class="desc">mute / unmute</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>HISTORY</h4>
+              <div class="kbd-row"><span class="keys"><kbd>⌘Z</kbd></span><span class="desc">undo</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⌘⇧Z</kbd></span><span class="desc">redo</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>GRAVITY (per-type physics)</h4>
+              <div class="kbd-row"><span class="keys" style="color:#ff4d40">BASS</span><span class="desc">attracts nearby nodes</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#ffd60a">BELLS</span><span class="desc">pushes nearby nodes outward</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#9b5de5">PAD</span><span class="desc">orbits nearest BASS within 300 px</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#00f5d4">AMBIENT</span><span class="desc">drifts in slow curves</span></div>
+              <div class="kbd-row"><span class="keys">GEN AI</span><span class="desc">rhythm-orbit others within 150 px</span></div>
+              <div class="kbd-row"><span class="keys">PERC</span><span class="desc">bounces off boundaries + nodes</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">manual drag still works · cap 0.5 px/frame</span></div>
+            </div>
+          </div>
+
+          <h3 class="help-subheading">NODE TYPES</h3>
+          <div class="node-type-grid">
+            <div class="node-type-row"><span class="node-type-glyph">◉</span><b>AMBIENT</b><span>3 detuned oscillators + LFO filter sweep — drifting pad texture</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">▼</span><b>BASS</b><span>Sub-frequency sine through a waveshaper — adds weight and low end</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">▦</span><b>PERC</b><span>Filtered noise burst with ADSR — snare/hat/click depending on frequency</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">✺</span><b>GEN AI</b><span>Pentatonic arpeggio driven by an AudioWorklet clock — stays in time</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">✦</span><b>BELLS</b><span>FM synthesis with inharmonic modulator — bright metallic bell decay</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">≋</span><b>STRINGS</b><span>4 detuned sawtooth oscillators with slow bow-like attack</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">⬡</span><b>PAD</b><span>Major triad chord tones through a slow-sweep filter — wide, warm</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">⌇</span><b>PLUCK</b><span>Triangle + harmonic with fast exponential decay — plucked string feel</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">♫</span><b>MELODY</b><span>Opens a piano-roll composer — draw your own tune, preview, drop as a node</span></div>
+            <div class="node-type-row"><span class="node-type-glyph">◎</span><b>VOICE</b><span>Your microphone through the full HRTF spatial chain</span></div>
+          </div>
+        </div>
+
+        <!-- ────────── REALMS ────────── -->
+        <div class="help-page" data-help-page="realms">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>CREATE</h4>
+              <div class="kbd-row"><span class="keys"><kbd>◯ NEW REALM</kbd></span><span class="desc">open the editor</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>PLACE</kbd></span><span class="desc">arms next canvas click</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>click canvas</kbd></span><span class="desc">plant the realm</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>EDIT / RESIZE</h4>
+              <div class="kbd-row"><span class="keys"><kbd>click label</kbd></span><span class="desc">the text pill at the top</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>SHIFT</kbd><span class="plus">+click</span></span><span class="desc">anywhere inside works too</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>SIZE</kbd></span><span class="desc">drag to resize live</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>right-click</kbd></span><span class="desc">delete on empty space</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>INHERITANCE</h4>
+              <div class="kbd-row"><span class="keys">drop <kbd>inside</kbd></span><span class="desc">key + BPM inherit from realm</span></div>
+              <div class="kbd-row"><span class="keys">drop <kbd>outside</kbd></span><span class="desc">uses global defaults</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>edit params</kbd></span><span class="desc">manual override always wins</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>TYPES (presets)</h4>
+              <div class="kbd-row"><span class="keys" style="color:#00f5d4">MELODIC</span><span class="desc">cyan · no filter</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#ff4d40">BASS</span><span class="desc">red · lowpass 400Hz + boost</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#ffd60a">PERCUSSIVE</span><span class="desc">amber · highpass 200Hz</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#9b5de5">CHAOS</span><span class="desc">purple · tremolo modulation</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ────────── PORTALS ────────── -->
+        <div class="help-page" data-help-page="portals">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>CREATE</h4>
+              <div class="kbd-row"><span class="keys"><kbd>◈ NEW PORTAL</kbd></span><span class="desc">sidebar button opens editor</span></div>
+              <div class="kbd-row"><span class="keys">KIND</span><span class="desc">LOCAL pair or ROOM link</span></div>
+              <div class="kbd-row"><span class="keys">COLOR</span><span class="desc">pick from 6 accent pills</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>PLACE</kbd></span><span class="desc">arms next canvas click</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>LOCAL PAIR</h4>
+              <div class="kbd-row"><span class="keys"><kbd>click 1</kbd></span><span class="desc">plants first portal</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>click 2</kbd></span><span class="desc">plants the twin</span></div>
+              <div class="kbd-row"><span class="keys">walk into</span><span class="desc">teleport across canvas</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">cooldown</span><span class="desc">1.2 s to prevent bouncing</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>ROOM PORTAL</h4>
+              <div class="kbd-row"><span class="keys">DESTINATION</span><span class="desc">any room name</span></div>
+              <div class="kbd-row"><span class="keys">walk into</span><span class="desc">switches you into that room</span></div>
+              <div class="kbd-row"><span class="keys">warp overlay</span><span class="desc">warm 0.5 s transition</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">one-way — make a return portal in the dest room</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>DELETE</h4>
+              <div class="kbd-row"><span class="keys"><kbd>right-click</kbd></span><span class="desc">on the portal</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">local pair: deletes both halves</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ────────── ACOUSTICS ────────── -->
+        <div class="help-page" data-help-page="acoustics">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>ENVIRONMENTS</h4>
+              <div class="kbd-row"><span class="keys"><kbd>◌</kbd></span><span class="desc">NONE — clean space</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⏜</kbd></span><span class="desc">CAVE — dark, narrow, 2.5 s tail</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>✽</kbd></span><span class="desc">FOREST — pre-delay, HF damping</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>✚</kbd></span><span class="desc">CATHEDRAL — huge 4 s wide tail</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⇌</kbd></span><span class="desc">TUNNEL — comb resonance, narrow</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">syncs across peers in the room</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>ECHO GHOSTS</h4>
+              <div class="kbd-row"><span class="keys"><kbd>◈ ECHO GHOSTS</kbd></span><span class="desc">sidebar toggle</span></div>
+              <div class="kbd-row"><span class="keys">trail</span><span class="desc">last 30 s of your path fading</span></div>
+              <div class="kbd-row"><span class="keys">audio</span><span class="desc">3.5 s delay + long reverb</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">local only — not synced to peers</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>REALM AUDIO (recap)</h4>
+              <div class="kbd-row"><span class="keys" style="color:#ff4d40">BASS</span><span class="desc">lowpass 400 Hz + 3 dB boost</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#00f5d4">MELODIC</span><span class="desc">no filter — clean pass-through</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#ffd60a">PERCUSSIVE</span><span class="desc">highpass 200 Hz</span></div>
+              <div class="kbd-row"><span class="keys" style="color:#9b5de5">CHAOS</span><span class="desc">7 Hz tremolo modulation</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">crossfade</span><span class="desc">0.5 s at realm borders</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ────────── CREATIVE ────────── -->
+        <div class="help-page" data-help-page="creative">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>PIANO</h4>
+              <div class="kbd-row"><span class="keys"><kbd>A</kbd><span class="plus">–</span><kbd>K</kbd></span><span class="desc">C4 → C5 chromatic</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>↺ LOOP REC</kbd></span><span class="desc">record &amp; loop a phrase</span></div>
+              <div class="kbd-row" style="opacity:0.6"><span class="keys">note</span><span class="desc">WASD paused while piano is on</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>MELODY COMPOSER</h4>
+              <div class="kbd-row"><span class="keys"><kbd>♫ MELODY</kbd></span><span class="desc">open piano-roll composer</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>click cell</kbd></span><span class="desc">place / remove a note</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>PREVIEW</kbd></span><span class="desc">audition without dropping</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>DROP AS NODE</kbd></span><span class="desc">next canvas click plants it</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>SCENE TOOLS</h4>
+              <div class="kbd-row"><span class="keys"><kbd>T</kbd></span><span class="desc">cursor chat bubble</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⤢ LINK</kbd></span><span class="desc">harmonically link two nodes</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>⊕ GRAVITY</kbd></span><span class="desc">nodes drift toward you</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>◈ SNAPSHOT</kbd></span><span class="desc">save / restore scenes</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>BPM</kbd></span><span class="desc">sync PERC · PLUCK · GEN AI</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ────────── ROOMS ────────── -->
+        <div class="help-page" data-help-page="rooms">
+          <div class="shortcut-grid">
+            <div class="shortcut-section">
+              <h4>ROOMS</h4>
+              <div class="kbd-row"><span class="keys"><kbd>ROOM</kbd></span><span class="desc">click to switch room</span></div>
+              <div class="kbd-row"><span class="keys">passcode</span><span class="desc">optional — private rooms</span></div>
+              <div class="kbd-row"><span class="keys">peers</span><span class="desc">see each other's nodes + realms live</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>THEMES</h4>
+              <div class="kbd-row"><span class="keys"><kbd>☾</kbd></span><span class="desc">cycle themes</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>◌ TINT</kbd></span><span class="desc">drag strip to pick hue</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>VISUALS</kbd></span><span class="desc">slider = effect intensity</span></div>
+            </div>
+            <div class="shortcut-section">
+              <h4>HELP</h4>
+              <div class="kbd-row"><span class="keys"><kbd>?</kbd></span><span class="desc">toggle this overlay</span></div>
+              <div class="kbd-row"><span class="keys"><kbd>ESC</kbd></span><span class="desc">close any modal</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-row">
+        <button id="help-close" class="primary">▶ GOT IT</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="export-modal" hidden>
+    <div class="modal">
+      <h2>EXPORT RECORDING</h2>
+      <p class="modal-hint" id="export-size-hint"></p>
+      <input id="export-filename" type="text" placeholder="filename" maxlength="80" />
+      <div class="export-format-row">
+        <div class="export-format-controls">
+          <span class="export-format-label">FORMAT</span>
+          <div class="export-format-toggle">
+            <button id="fmt-webm" class="fmt-btn active">WEBM</button>
+            <button id="fmt-wav"  class="fmt-btn">WAV</button>
+          </div>
+        </div>
+        <span class="export-format-hint" id="export-format-hint">smaller file, browser-native</span>
+      </div>
+      <div class="modal-row">
+        <button id="export-cancel">CANCEL</button>
+        <button id="export-download" class="primary">&#11015; DOWNLOAD</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="room-modal" hidden>
+    <div class="modal">
+      <h2>SWITCH ROOM</h2>
+      <p class="modal-hint">A <b>room</b> is a shared world. Everyone using the same room name sees and hears the same canvas.</p>
+      <p class="modal-hint">Add a passcode to make it private — share both with friends to meet up.</p>
+      <input id="room-input" type="text" placeholder="room name (a–z, 0–9, -)" maxlength="32" />
+      <input id="room-passcode" type="password" placeholder="passcode (optional)" maxlength="64" />
+      <div class="modal-row">
+        <button id="room-cancel">CANCEL</button>
+        <button id="room-confirm" class="primary">▶ JOIN</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="snapshot-modal" hidden>
+    <div class="modal modal-wide">
+      <h2>SNAPSHOTS</h2>
+
+      <h3 class="snap-section-heading">STARTER SCENES</h3>
+      <div id="starter-scenes" class="starter-grid"></div>
+
+      <h3 class="snap-section-heading">MY SNAPSHOTS</h3>
+      <p class="modal-hint">Save the current scene layout. Restoring clears the canvas.</p>
+      <div class="snap-save-row">
+        <input id="snap-name-input" type="text" placeholder="preset name…" maxlength="40" />
+        <button id="snap-save-btn" class="primary">SAVE</button>
+      </div>
+      <div id="snap-list" class="snap-list"></div>
+
+      <div class="modal-row">
+        <button id="snap-close">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portal creation modal -->
+  <div class="modal-backdrop" id="portal-modal" hidden>
+    <div class="modal">
+      <h2>NEW PORTAL</h2>
+      <p class="modal-hint">A gateway on the canvas. Walking into it teleports you.</p>
+
+      <div class="composer-controls">
+        <label>KIND<select id="portal-kind">
+          <option value="local" selected>↔ LOCAL (place a linked pair)</option>
+          <option value="room">➜ ROOM (link to another room)</option>
+        </select></label>
+      </div>
+      <div class="composer-controls" id="portal-room-row" hidden>
+        <label>DESTINATION ROOM<input id="portal-room-name" type="text" maxlength="32" placeholder="e.g. lounge" /></label>
+      </div>
+      <div class="composer-controls">
+        <label>COLOR
+          <div class="realm-color-pills" id="portal-color-pills">
+            <button type="button" class="realm-color-pill" data-color="#4cc9f0" style="background:#4cc9f0"></button>
+            <button type="button" class="realm-color-pill" data-color="#00f5d4" style="background:#00f5d4"></button>
+            <button type="button" class="realm-color-pill" data-color="#f72585" style="background:#f72585"></button>
+            <button type="button" class="realm-color-pill" data-color="#ffb86c" style="background:#ffb86c"></button>
+            <button type="button" class="realm-color-pill" data-color="#9b5de5" style="background:#9b5de5"></button>
+            <button type="button" class="realm-color-pill" data-color="#ff4d40" style="background:#ff4d40"></button>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-row">
+        <button id="portal-cancel-modal">CANCEL</button>
+        <button id="portal-confirm" class="primary">✚ PLACE ON CANVAS</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="realm-modal" hidden>
+    <div class="modal">
+      <h2 id="realm-modal-title">NEW REALM</h2>
+      <p class="modal-hint">A musical zone. Nodes dropped inside inherit its key and BPM.</p>
+
+      <div class="composer-controls">
+        <label>NAME<input id="realm-name" type="text" maxlength="24" placeholder="realm name" /></label>
+      </div>
+      <div class="composer-controls">
+        <label>TYPE<select id="realm-editor-type" title="Seeds the name prefix + default color. Everything is still editable.">
+          <option value="melodic">MELODIC</option>
+          <option value="bass">BASS</option>
+          <option value="percussive">PERCUSSIVE</option>
+          <option value="chaos">CHAOS</option>
+        </select></label>
+        <label>KEY<select id="realm-key">
+          <option value="C">C</option><option value="C#">C#</option><option value="D">D</option>
+          <option value="Eb">Eb</option><option value="E">E</option><option value="F">F</option>
+          <option value="F#">F#</option><option value="G">G</option><option value="Ab">Ab</option>
+          <option value="A">A</option><option value="Bb">Bb</option><option value="B">B</option>
+        </select></label>
+        <label>BPM<input id="realm-bpm" type="range" min="60" max="200" value="100" /><span id="realm-bpm-val">100</span></label>
+      </div>
+      <div class="composer-controls">
+        <label>SIZE<input id="realm-radius" type="range" min="100" max="800" value="260" /><span id="realm-radius-val">260</span></label>
+      </div>
+      <div class="composer-controls">
+        <label>COLOR
+          <div class="realm-color-pills" id="realm-color-pills">
+            <button type="button" class="realm-color-pill" data-color="#ff4d40" style="background:#ff4d40"></button>
+            <button type="button" class="realm-color-pill" data-color="#ff6d00" style="background:#ff6d00"></button>
+            <button type="button" class="realm-color-pill" data-color="#ffd60a" style="background:#ffd60a"></button>
+            <button type="button" class="realm-color-pill" data-color="#00f5d4" style="background:#00f5d4"></button>
+            <button type="button" class="realm-color-pill" data-color="#4cc9f0" style="background:#4cc9f0"></button>
+            <button type="button" class="realm-color-pill" data-color="#9b5de5" style="background:#9b5de5"></button>
+          </div>
+        </label>
+      </div>
+
+      <div class="modal-row">
+        <button id="realm-delete" hidden>⌫ DELETE</button>
+        <button id="realm-cancel">CANCEL</button>
+        <button id="realm-confirm" class="primary">✚ PLACE ON CANVAS</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="melody-modal" hidden>
+    <div class="modal modal-wide">
+      <h2>MELODY COMPOSER</h2>
+      <p class="modal-hint">Click cells to place notes. One note per column = a monophonic tune. Blank = rest.</p>
+
+      <div class="composer-controls">
+        <label>ROOT<select id="composer-root">
+          <option value="C">C</option><option value="C#">C#</option><option value="D">D</option>
+          <option value="Eb">Eb</option><option value="E">E</option><option value="F">F</option>
+          <option value="F#" selected>F#</option><option value="G">G</option><option value="Ab">Ab</option>
+          <option value="A">A</option><option value="Bb">Bb</option><option value="B">B</option>
+        </select></label>
+        <label>OCT<select id="composer-octave">
+          <option value="2">2</option><option value="3" selected>3</option><option value="4">4</option>
+        </select></label>
+        <label>WAVE<select id="composer-wave">
+          <option value="triangle" selected>triangle</option>
+          <option value="sine">sine</option>
+          <option value="square">square</option>
+        </select></label>
+        <label>LABELS<select id="composer-labels">
+          <option value="semi" selected>±semitones</option>
+          <option value="notes">note names</option>
+        </select></label>
+        <label>BPM<input id="composer-bpm" type="range" min="60" max="180" value="100" /><span id="composer-bpm-val">100</span></label>
+        <label>TEMPLATE<select id="composer-template">
+          <option value="empty" selected>-- empty --</option>
+          <option value="0">Billie Jean</option>
+          <option value="1">Come As You Are</option>
+          <option value="2">Still D.R.E.</option>
+          <option value="3">Fate Motif</option>
+          <option value="4">Take Five</option>
+        </select></label>
+      </div>
+
+      <div id="composer-grid" class="composer-grid"></div>
+
+      <div class="modal-row composer-actions">
+        <button id="composer-preview" class="primary">▶ PREVIEW</button>
+        <button id="composer-stop">■ STOP</button>
+        <button id="composer-clear">⌫ CLEAR</button>
+        <button id="composer-drop" class="primary">✚ DROP AS NODE</button>
+        <button id="composer-close">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="warp-overlay" class="warp-overlay"></div>
+
+  <div class="chat-input-wrap" id="chat-input-wrap">
+    <span class="chat-label">SAY SOMETHING</span>
+    <input id="chat-text" type="text" placeholder="type & press Enter…" maxlength="60" autocomplete="off" />
+    <span class="chat-hint">ESC to cancel · T to open</span>
+  </div>
+
+  <div class="splash" id="splash">
+    <div class="splash-inner">
+      <h1>⟁ SPATIAL SOUNDSCAPE</h1>
+      <p>Drop sounds onto a shared canvas.<br/>Walk between them. Hear them move around you.<br/><span style="opacity:0.55">better with a friend &nbsp;·&nbsp; way better with headphones</span></p>
+      <button id="splash-start">▶ ENTER</button>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

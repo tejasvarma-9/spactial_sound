@@ -1,0 +1,50 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp.*
+
+# ── Build output ─────────────────────────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+.vite/
+
+# ── Runtime / logs ───────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+.eslintcache
+
+# ── Test artefacts ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Editor / OS ──────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Local env / secrets ──────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Claude Code local config ─────────────────────────────────────────────────
+.claude/
+
+# ── Local planning / scratch ─────────────────────────────────────────────────
+roadmap.html
+scratchpad/
+.scratchpad/
+
+# ── Playwright / test recordings ─────────────────────────────────────────────
+/tmp/*.webm
+playwright-report/
+test-results/
