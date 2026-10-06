@@ -46,8 +46,43 @@ function getRoom(name: string): Room {
     connections: new Set(),
     cleanupTimer: null,
   };
+  attachRoomBroadcast(room);
   rooms.set(name, room);
   return room;
+}
+
+// One listener per room (not per connection): each update is fanned out once.
+function attachRoomBroadcast(room: Room): void {
+  room.doc.on('update', (update: Uint8Array, origin: unknown) => {
+    const enc = encoding.createEncoder();
+    encoding.writeVarUint(enc, MESSAGE_SYNC);
+    syncProtocol.writeUpdate(enc, update);
+    // The originating connection already has this update.
+    broadcast(room, encoding.toUint8Array(enc), origin as WSConn | null);
+  });
+
+  room.awareness.on(
+    'update',
+    (
+      { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
+      origin: unknown,
+    ) => {
+      const conn = origin as WSConn | null;
+      const changedClients = added.concat(updated, removed);
+      if (conn && conn.controlledIds) {
+        // Track this conn's client IDs so they can be reaped on disconnect.
+        for (const id of added) conn.controlledIds.add(id);
+        for (const id of removed) conn.controlledIds.delete(id);
+      }
+      const enc = encoding.createEncoder();
+      encoding.writeVarUint(enc, MESSAGE_AWARENESS);
+      encoding.writeVarUint8Array(
+        enc,
+        awarenessProtocol.encodeAwarenessUpdate(room.awareness, changedClients),
+      );
+      broadcast(room, encoding.toUint8Array(enc), null);
+    },
+  );
 }
 
 function broadcast(room: Room, message: Uint8Array, except: WSConn | null): void {
@@ -152,38 +187,6 @@ fastify.register(async (instance) => {
     room.connections.add(conn);
     fastify.log.info(`[ws] join ${roomName} (${room.connections.size} conn)`);
 
-    const docUpdateHandler = (update: Uint8Array, origin: unknown) => {
-      if (origin === conn) return;
-      const enc = encoding.createEncoder();
-      encoding.writeVarUint(enc, MESSAGE_SYNC);
-      syncProtocol.writeUpdate(enc, update);
-      const message = encoding.toUint8Array(enc);
-      for (const c of room.connections) {
-        if (c.socket.readyState === c.socket.OPEN) c.socket.send(message);
-      }
-    };
-    room.doc.on('update', docUpdateHandler);
-
-    const awarenessHandler = (
-      { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
-      origin: unknown,
-    ) => {
-      const changedClients = added.concat(updated, removed);
-      if (origin === conn) {
-        // Track this conn's client IDs so they can be reaped on disconnect.
-        for (const id of added) conn.controlledIds.add(id);
-        for (const id of removed) conn.controlledIds.delete(id);
-      }
-      const enc = encoding.createEncoder();
-      encoding.writeVarUint(enc, MESSAGE_AWARENESS);
-      encoding.writeVarUint8Array(
-        enc,
-        awarenessProtocol.encodeAwarenessUpdate(room.awareness, changedClients),
-      );
-      broadcast(room, encoding.toUint8Array(enc), null);
-    };
-    room.awareness.on('update', awarenessHandler);
-
     socket.on('message', (raw: Buffer) => {
       try {
         handleMessage(conn, new Uint8Array(raw));
@@ -193,8 +196,6 @@ fastify.register(async (instance) => {
     });
 
     socket.on('close', () => {
-      room.doc.off('update', docUpdateHandler);
-      room.awareness.off('update', awarenessHandler);
       room.connections.delete(conn);
       awarenessProtocol.removeAwarenessStates(
         room.awareness,
